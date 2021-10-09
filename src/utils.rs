@@ -7,8 +7,7 @@ use indicatif::ProgressBar;
 ///
 /// # Logic
 /// 1. Take each character of `hash`, add `deriv` to its UTF-8 representation
-/// 2. Take 90% of the result string
-/// 3. Take mod 96 and add 30 to coerce result between chars 0 => ~
+/// 2. Take mod 96 and add 30 to coerce result between chars 0 => ~
 ///
 /// # Examples
 ///
@@ -19,13 +18,13 @@ use indicatif::ProgressBar;
 pub fn reduce<T: AsRef<str>>(hash: T, deriv: u32) -> String {
     let hashref = hash.as_ref();
     hashref.bytes()
-           .take(((hashref.len() as f32)*0.9) as usize)
            .map(|i| (((i as u32 + deriv) % (96)) + 30) as u8 as char)
            .collect::<String>()
 }
 
 
-/// Generate the hash chain of `n`-length from a `src` source string
+/// Generate the hash chain of `n`-length from a `src` source string.
+/// Optionally pass a pointer to a indicativ::Progressbar to update
 ///
 /// # Examples
 ///
@@ -50,13 +49,13 @@ mod tests {
 
     #[test]
     fn reduce_test() {
-        assert_eq!(reduce("this is a test", 934291), "E9:DQ:DQ2QE6");
+        assert_eq!(reduce("this is a test", 934291), "E9:DQ:DQ2QE6DE");
     }
 
 
     #[test]
     fn generate_chain_test() {
-        assert_eq!(generate_chain("hallo", 10000, None), "61fbf1600667ba3ce20dc5fbea5cdcac");
+        assert_eq!(generate_chain("hallo", 10000, None), "0b6fdc5e8b76c91911a6705d5b88c195");
     }
 }
 

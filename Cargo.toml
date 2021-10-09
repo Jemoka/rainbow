@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 indicatif = "0.16.2"
 md5 = "0.7.0"
+rand = "0.8.4"
