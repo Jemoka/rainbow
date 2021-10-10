@@ -1,12 +1,14 @@
 //! A Rainbow Table!
 
-use indicatif::ProgressIterator;
+use md5;
 use rand::{distributions::Alphanumeric, Rng};
 
-use super::utils;
+use indicatif::ProgressBar;
 
 use std::thread;
-use md5;
+use std::sync::{Arc, Mutex};
+
+use super::utils;
 
 /// Represents a Fully-Hashable Rainbow Table
 #[derive(Debug, Hash)]
@@ -35,13 +37,8 @@ impl Rainbow {
     /// ```
     pub fn create(samples: u32,
                   length: u32,
-                  seeds: Option<Vec<String>>,
-                  threads: Option<u8>) -> Result<Self, &'static str> {
-
-        // let mut rainbow_table: Vec<(String, String)> = Vec::new();
-        let workers:u8 = if let Some(r) = threads {r} else {10};
-        let mut threads: Vec<thread::Thread> = Vec::new();
-
+                  seeds: Option<Vec<String>>) -> Result<Self, &'static str> {
+        // Set up seed values
         let seed_vec:Vec<String> = if let Some(seeds_arr) = seeds {
             seeds_arr
         } else {
@@ -54,15 +51,31 @@ impl Rainbow {
                 .collect()
         };
 
-        for i in (0..samples).progress() {
-            if let Some(res) = seed_vec.get(i as usize) {
-                rainbow_table.push((res.clone(),
-                                    utils::generate_chain(res, length, None)));
-            } else {
-                return Err("Seed vector length and desired sample count mismatches!");
-            };
+        // Set up threads and workers
+        let mut threads: Vec<_> = Vec::new();
+
+        // Assert length of vector
+        assert_eq!(seed_vec.len(),
+                   (length as usize),
+                   "seed vector must be the same length as the lengh of table");
+
+        // Set up indicativ
+        let indicator = Arc::new(Mutex::new(ProgressBar::new(length as u64)));
+
+        // Go!
+        for item in seed_vec {
+            let payload = Arc::clone(&indicator);
+
+            threads.push(thread::spawn(move || -> (String, String) {
+                let res = (item.clone(), utils::generate_chain(item, length, None));
+                let bar = payload.lock().unwrap();
+                (*bar).inc(1);
+
+                return res;
+            }));
         }
 
+        let rainbow_table:Vec<(String, String)> = threads.into_iter().map(|c| c.join().unwrap()).collect();
         return Ok(Rainbow { number_samples: samples, chain_length: length,  rainbow_table: rainbow_table});
     }
 

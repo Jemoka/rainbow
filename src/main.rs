@@ -1,5 +1,5 @@
-mod utils;
 mod table;
+mod utils;
 
 
 // use indicatif::ProgressBar;
