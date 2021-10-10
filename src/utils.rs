@@ -5,7 +5,13 @@ use indicatif::ProgressBar;
 
 /// Apply the `deriv`-th reduction function upon string slice pointer `hash`
 ///
+/// # Arguments
+///
+/// * `hash`: a str-like reference representing the source hash
+/// * `deriv`: u32 representing the n-th reduce function being called
+///
 /// # Logic
+///
 /// 1. Take each character of `hash`, add `deriv` to its UTF-8 representation
 /// 2. Take mod 96 and add 30 to coerce result between chars 0 => ~
 ///
@@ -14,7 +20,6 @@ use indicatif::ProgressBar;
 /// ```
 /// reduce("this is a test", 934291) 
 /// ```
-
 pub fn reduce<T: AsRef<str>>(hash: T, deriv: u32) -> String {
     let hashref = hash.as_ref();
     hashref.bytes()
@@ -24,14 +29,19 @@ pub fn reduce<T: AsRef<str>>(hash: T, deriv: u32) -> String {
 
 
 /// Generate the hash chain of `n`-length from a `src` source string.
-/// Optionally pass a pointer to a indicativ::Progressbar to update
+/// Optionally pass a pointer to a indicatif::Progressbar to update
+///
+/// # Arguments
+///
+/// * `src`: a str-like reference representing the source string of chain
+/// * `n`: u32 representing the length of desired chain
+/// * `bar`: Option perhaps containing pointer to a indicatif `ProgressBar` to update
 ///
 /// # Examples
 ///
 /// ```
 /// generate_chain("hallo", 10000, None)
 /// ```
-
 pub fn generate_chain<T: AsRef<str>>(src: T, n:u32, bar:Option<&ProgressBar>) -> String {
     let mut hash:String = format!("{:x}", md5::compute(src.as_ref()));
     for i in 0..n {
