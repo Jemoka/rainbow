@@ -1,18 +1,25 @@
 mod table;
 mod utils;
 
+pub use table::Rainbow;
 
 // use indicatif::ProgressBar;
 
 fn main() {
+    // println!("{:?}", base64::encode([1,2,3,4,5,6,7]).as_bytes());
 
     // "abc" = "900150983cd24fb0d6963f7d28e17f72"
 
-    let res = table::Rainbow::create(100, 5000, None);
+    // let a = "hewoo";
+    // let digest:[u8;16] = md5::compute(a).into();
+    // println!("{:x}, {:?}, {}", md5::compute(a), digest, utils::reduce(&digest, 1));
+
+    let res = table::Rainbow::create(10000, 2000, 250, None);
+    // println!("table: {:?}", res);
     if let Ok(table) = res {
-        println!("result: {:?}", table.decode("900150983cd24fb0d6963f7d28e17f72"));
+        let r:[u8;16] = md5::compute("aoa").into();
+        println!("\n \n result: {:?}", table.decode(&r, 200));
     }
-    // println!("{:?}", table::Rainbow::new(10000, 5000, None));
 
 
     // let bar = ProgressBar::new(10000);

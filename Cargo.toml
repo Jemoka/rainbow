@@ -3,10 +3,15 @@ name = "rainbow"
 version = "0.1.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+debug = true
 
 [dependencies]
 indicatif = "0.16.2"
 md5 = "0.7.0"
 rand = "0.8.4"
 futures = "0.3.17"
+threadpool = "1.8.1"
+serde = {version = "1.0.130", features = ["derive"]}
+serde_json = "1.0.68"
+base64 = "0.13.0"
