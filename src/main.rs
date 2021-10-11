@@ -14,10 +14,10 @@ fn main() {
     // let digest:[u8;16] = md5::compute(a).into();
     // println!("{:x}, {:?}, {}", md5::compute(a), digest, utils::reduce(&digest, 1));
 
-    let res = table::Rainbow::create(10000, 2000, 250, None);
-    // println!("table: {:?}", res);
+    let res = table::Rainbow::create(40000, 2000, 250, None);
+    println!("table: {:?}", res);
     if let Ok(table) = res {
-        let r:[u8;16] = md5::compute("aoa").into();
+        let r:[u8;16] = md5::compute("hewo").into();
         println!("\n \n result: {:?}", table.decode(&r, 200));
     }
 

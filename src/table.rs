@@ -2,6 +2,7 @@
 
 use md5;
 use std::fs;
+use std::convert::TryInto;
 use rand::{distributions::Alphanumeric, Rng};
 
 use indicatif::ProgressBar;
@@ -19,7 +20,7 @@ use super::utils;
 pub struct Rainbow {
     number_samples: u32,
     chain_length: u32,
-    rainbow_table: Vec<(String, String)>
+    rainbow_table: Vec<(Vec<u8>, Vec<u8>)>
 }
 
 impl Rainbow {
@@ -42,16 +43,16 @@ impl Rainbow {
     pub fn create(samples: u32,
                   length: u32,
                   threads: u8,
-                  seeds: Option<Vec<String>>) -> Result<Self, &'static str> {
+                  seeds: Option<&[&str]>) -> Result<Self, &'static str> {
 
         // Set up seed values
         let seed_vec:Vec<String> = if let Some(seeds_arr) = seeds {
-            seeds_arr
+            seeds_arr.iter().map(|i| String::from(*i)).collect()
         } else {
             (0..samples).map(|_| rand::thread_rng()
                             .sample_iter(&Alphanumeric)
                             .take(rand::thread_rng()
-                                  .gen_range(0..4))
+                                  .gen_range(0..25))
                             .map(char::from)
                             .collect())
                 .collect()
@@ -60,36 +61,148 @@ impl Rainbow {
         // Assert length of vector
         assert_eq!(seed_vec.len(),
                    (samples as usize),
-                   "seed vector must be the same length as the lengh of table");
+                   "seed vector must be the same length as the sample length of table");
 
-        // Set up indicativ
+        // Set up mutex for progress bar
         let indicator = Arc::new(Mutex::new(ProgressBar::new(samples as u64)));
 
         // Create thread pool and channels
         let pool = ThreadPool::new(threads as usize);
         let (sender, receiver) = channel();
 
-        // Go!
+        // Take each seed, generate the corresponding chain, store it
         for item in seed_vec {
+            // Create thread-specific pointers to indicator and result sender
             let payload = Arc::clone(&indicator);
             let sender = sender.clone();
 
+            // Go!
             pool.execute(move || {
-                let _ = sender.send((item.clone(), utils::generate_chain(item, length, None)));
+                // Generate a chain of length `length` via reduction fns [0,length-1]
+                let _ = sender.send((item.as_bytes().to_owned(), utils::generate_chain(item.as_bytes(), length, None)));
+
+                // Increment the shared counter
                 (*(payload.lock().unwrap())).inc(1);
             });
         }
 
-        let rainbow_table:Vec<(String, String)> = receiver.iter()
-                                                          .take(samples as usize)
-                                                          .collect();
+        // Collect results together
+        let rainbow_table:Vec<(Vec<u8>, Vec<u8>)> = receiver.iter()
+                                                            .take(samples as usize)
+                                                            .collect();
 
         // Finish progress bar
         (*(indicator.clone().lock().unwrap())).finish_and_clear();
 
-        return Ok(Rainbow { number_samples: samples, chain_length: length,  rainbow_table: rainbow_table});
+        return Ok(Rainbow { number_samples: samples, chain_length: length, rainbow_table: rainbow_table});
     }
 
+    /// Private method to discover the correct chain to decode for a hash
+    fn discover_chain(&self, src_hash: &[u8], threads: u8) -> Result<(Vec<u8>,Vec<u8>), &'static str> {
+        // Copy the length of theh table into the current scope
+        let chain_length: u32 = self.chain_length;
+
+        // Copy the source hash into the curren scope and coerce it into array
+        let src_hash:[u8;16] = if let Ok(res) = src_hash.try_into() { res }
+                                else { return Err("Unexpected input hash pointer format! Should be array of 16 u8s") };
+
+        // Create a thread-safe mutex for the bar and a thread-safe smart pointer to the rainbow table
+        let table = Arc::new(self.rainbow_table.clone());
+        let indicator = Arc::new(Mutex::new(ProgressBar::new(self.chain_length as u64)));
+        
+        // Create the thread pool and necessary message channels
+        let pool = ThreadPool::new(threads as usize);
+        let (result_sender, result_receiver) = channel(); // used to send found chains
+        let (status_sender, status_receiver) = channel(); // used to report finished status
+
+        // For loop through the last n-th reduction, perform them, and check
+        // This would be worth (1/2)O(n^2) --- {last}, {second last, last}, ...
+        // It's in chain_length+1 because we want to capture one set of reduction
+        // with range chain_length..chain_length --- no further reduction
+        for start in (0..(chain_length+1)).rev() {
+            // Make thread-specific copies of each safe smart pointer
+            let table = table.clone();
+            let payload = indicator.clone();
+            let result_sender = result_sender.clone();
+            let status_sender = status_sender.clone();
+
+            // Go!
+            pool.execute(move || {
+                // Copy the source hash to a mutable var
+                let mut hash:[u8;16] = src_hash;
+
+                // Calculate the nth reduction starting from the start-th reduction
+                for i in start..chain_length {
+                    // Reduce the hash, then compute again
+                    hash = md5::compute(utils::reduce(&hash, i)).into();
+                }
+
+                // Vecorize the computed array into an owned object
+                let final_hash:Vec<u8> = hash.to_vec();
+
+                // Check if final reduced hash is in the table
+                for elem in &*table {
+                    // If the hash vas found
+                    if elem.1 == final_hash {
+                        // Tell the sender about it, and ignore errors by consuming
+                        // the value.
+                        // TODO, there should not be any but still
+                        let _ = result_sender.send((elem.0.clone(), elem.1.clone()));
+                        break;
+                    }
+                }
+
+                // Incriment the counter
+                (*(payload.lock().unwrap())).inc(1);
+
+                // Tell'em we are done, ignoring any thread msging errors
+                // TODO as with above
+                let _ = status_sender.send(());
+            });
+        }
+
+        // Wait for an answer from any of the threads, or wait until all threads
+        // declare the end of search
+        let mut res_src = result_receiver.try_recv();
+        let mut count = 0;
+
+        // Use a while loop to block current thread until we either recieved the
+        // end message from all (chain_length number of) threads or we recieved
+        // a response message that isn't an error
+
+        while res_src.is_err() && count < self.chain_length {
+            let _ = status_receiver.recv(); count+=1; // hold main thread until next finish message to check
+            res_src = result_receiver.try_recv(); // some thread finished, let's recieve potential result
+        }
+
+        // Clear the progress bar
+        (*(indicator.clone().lock().unwrap())).finish_and_clear();
+
+        // If we completed, and still didn't find anything, return an Error.
+        // Otherwise, return the result.
+        return if res_src.is_err() { Err("Cannot find hash inside table.") }
+                else { Ok(res_src.unwrap()) };
+    }
+
+    // Private method to regenerate a chain and recover the password
+    fn recover_password(&self, chain_src:&[u8], target_hash: &[u8]) -> Result<String, &'static str> {
+        let mut hash:[u8;16];
+        let mut src:Vec<u8> = chain_src.to_owned();
+
+        for i in 0..self.chain_length {
+            hash = md5::compute(&src).into();
+            if hash == *target_hash {
+                return Ok(src.iter().map(|i| *i as char).collect());
+            }
+
+            src = utils::reduce(&hash, i);
+        }
+
+        return Err("Cannot find hash inside backchain.");
+
+    }
+
+    // fn discover_chain(&self, src_hash: &[u8], threads: u8) -> Result<(Vec<u8>,Vec<u8>), &'static str> {
 
     /// Decode a u8 digest of md5 hash from the table. Returns a `Result`
     /// of either the String password or a static &str message of error.
@@ -107,88 +220,10 @@ impl Rainbow {
     /// table.decode(&digest);
     /// ```
     pub fn decode(&self, src_hash: &[u8], threads: u8) -> Result<String, &'static str> {
-        // Setup hash and target containers, which must last the lifetime
-        // of this function
-        let hash_string:String = src_hash.iter().map(|i| *i as char).collect();
-
-        // Create the mutex for the bar and smart pointer for rainbow table
-        let indicator = Arc::new(Mutex::new(ProgressBar::new(self.chain_length as u64)));
-        let table = Arc::new(self.rainbow_table.clone());
-
-        // Create the thread pool
-        let pool = ThreadPool::new(threads as usize);
-        let (result_sender, result_receiver) = channel(); // used to send found chains
-        let (status_sender, status_receiver) = channel(); // used to report finished status
-
-        // Clone table, length, and hash for distribution into threads
-        let chain_length: u32 = self.chain_length;
-
-        for nth_reduction in (0..chain_length).rev() {
-            // Clone the appropriate theading references to be processed
-            let payload = Arc::clone(&indicator);
-            let table = Arc::clone(&table);
-            let base_hash: [u8;16] = md5::compute(
-                utils::reduce(&src_hash, nth_reduction).as_bytes()
-            ).into();
-            let result_sender = result_sender.clone();
-            let status_sender = status_sender.clone();
-            let hash_string = hash_string.clone();
-
-            pool.execute(move || {
-                // Compute the first hash
-                let mut hash: [u8;16] = base_hash;
-
-                let mut current_reduction: String;
-
-                // Calculate the nth reduction chain
-                for i in (nth_reduction+1)..chain_length {
-                    current_reduction = utils::reduce(&hash, i);
-                    hash = md5::compute(current_reduction.as_bytes()).into();
-                }
-
-                // Check if reduced hash is in the table
-                for elem in &*table {
-                    if elem.1 == hash_string {
-                        let _ = result_sender.send((elem.0.clone(), elem.1.clone()));
-                        break;
-                    }
-                }
-
-                (*(payload.lock().unwrap())).inc(1);
-                let _ = status_sender.send(());
-            });
-        }
-
-        let mut res_src:Result<(String,String), _> = result_receiver.try_recv();
-        let mut count = 0;
-
-        // Hold main thread until success or completion
-        while res_src.is_err() && count < self.chain_length {
-            let _ = status_receiver.recv(); count+=1; // hold until next finish
-            res_src = result_receiver.try_recv();
-        }
-
-        // If completed, 
-        if res_src.is_err() {return Err("Unfortunately, the hash is not in the table.");}
-        (*(indicator.clone().lock().unwrap())).finish_and_clear();
-
-        let res = res_src.unwrap();
-        let mut current_reduction: String = res.0;
-        let mut hash:[u8;16] = md5::compute(current_reduction.as_bytes()).into();
-
-        for i in 0..self.chain_length {
-            println!("{:?}", hash);
-            if hash.iter().map(|i| *i as char).collect::<String>() == hash_string {
-                    return Ok(current_reduction)
-            } else {
-                current_reduction = utils::reduce(&hash, i);
-                hash = md5::compute(current_reduction.as_bytes()).into();
-            }
-
-        }
-
-
-        return Err("Unfortunately, the hash is not in the backchain.");
+        // Attempt to discover the chain in which the hash is included
+        // or propergate error forwards if needed
+        let target_chain = self.discover_chain(src_hash, threads)?.0;
+        self.recover_password(&target_chain, src_hash)
     }
 
     /// Use serde to write the rainbow table to a file. Returns a `Result`
