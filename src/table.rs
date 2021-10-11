@@ -20,7 +20,7 @@ use super::utils;
 pub struct Rainbow {
     number_samples: u32,
     chain_length: u32,
-    rainbow_table: Vec<(Vec<u8>, Vec<u8>)>
+    pub rainbow_table: Vec<(Vec<u8>, Vec<u8>)>
 }
 
 impl Rainbow {
@@ -241,5 +241,23 @@ impl Rainbow {
     /// ```
     pub fn write_json(&self, file:&str) -> Result<(),std::io::Error> {
         fs::write(file, serde_json::to_string(self).unwrap())
+    }
+
+    /// Use serde to read a file into a rainbow table. Returns a `Result`
+    /// of either a table or `io::Error`.
+    ///
+    /// # Arguments
+    ///
+    /// * `file`: file path to write to
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let table = Rainbow::create(10000, 1000, None);
+    /// table.write_json("./hewo.json");
+    /// ```
+    pub fn read_json(file:&str) -> Result<Self,std::io::Error> {
+        let deserialized: Self = serde_json::from_str(&fs::read_to_string(file)?).unwrap();
+        Ok(deserialized)
     }
 }

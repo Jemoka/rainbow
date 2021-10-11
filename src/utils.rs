@@ -2,6 +2,7 @@ use md5;
 use indicatif::ProgressBar;
 
 use base64;
+use std::cmp;
 
 /// Apply the `deriv`-th reduction function upon string slice pointer `hash`
 ///
@@ -12,8 +13,10 @@ use base64;
 ///
 /// # Logic
 ///
-/// 1. Take each value of the digest, crop to 98% of its orignal length
-/// 2. Add `deriv` to its UTF-8 representation, mod 96, plus 30
+/// 1. Take each value of the digest
+/// 2. Take the first (mod 30 of deriv, add 1) of the size,
+///    and max() that with 4 to prevent high collisions
+/// 3. Take each char's utf-8, mod 96 and add 30 to conform charset
 ///
 /// # Examples
 ///
@@ -21,10 +24,17 @@ use base64;
 /// reduce([1,2,4,5,11,4,5,9,9,4,8,9,3,4,1,9], 934291) 
 /// ```
 pub fn reduce(hash: &[u8], deriv: u32) -> Vec<u8> {
-    hash.iter()
-        .take(((hash.len() as f32) * 0.98) as usize)
-        .map(|i| (((*i as u32 + deriv) % (96)) + 30) as u8)
-        .collect::<Vec<u8>>()
+    if deriv % 2 == 0 {
+        base64::encode(hash).as_bytes().iter()
+            .take(cmp::max(deriv % 30 + 1, 4) as usize)
+            .map(|i| (((*i as u32 + deriv) % (74)) + 48) as u8)
+            .collect::<Vec<u8>>()
+    } else {
+        hash.iter()
+            .take(cmp::max(deriv % 30 + 1, 4) as usize)
+            .map(|i| (((*i as u32 + deriv) % (74)) + 48) as u8)
+            .collect::<Vec<u8>>()
+    } 
 }
 
 /// Generate the hash chain of `n`-length from a `src` source string.
