@@ -310,6 +310,8 @@ dependencies = [
  "indicatif",
  "md5",
  "rand",
+ "rand_chacha",
+ "rand_core",
  "serde",
  "serde_json",
  "threadpool",

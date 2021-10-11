@@ -4,6 +4,7 @@ mod table;
 pub use table::Rainbow;
 
 use std::num::ParseIntError;
+// use md5;
 use std::fs;
 
 #[macro_use]
@@ -16,6 +17,8 @@ extern crate clap;
  * `lib.rs` is likely more helpful to that end.
  *
  */
+
+
 
 
 // Decode a hexdecimal string

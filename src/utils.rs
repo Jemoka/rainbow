@@ -1,8 +1,8 @@
 use md5;
 use indicatif::ProgressBar;
 
-use base64;
-use std::cmp;
+use rand_core::{SeedableRng, RngCore};
+use rand_chacha::ChaChaRng;
 
 /// Apply the `deriv`-th reduction function upon string slice pointer `hash`
 ///
@@ -13,10 +13,10 @@ use std::cmp;
 ///
 /// # Logic
 ///
-/// 1. Take each value of the digest
-/// 2. Take the first (mod 30 of deriv, add 1) of the size,
-///    and max() that with 4 to prevent high collisions
-/// 3. Take each char's utf-8, mod 96 and add 30 to conform charset
+/// 1. Take the deriv number to seed a cha cha random number generator
+/// 2. Get each output conformed to be within 30 from the generator
+/// 3. Return the nth value from the hash, added to another random number
+///    mod 96 + 30 to conform charset
 ///
 /// # Examples
 ///
@@ -24,17 +24,11 @@ use std::cmp;
 /// reduce([1,2,4,5,11,4,5,9,9,4,8,9,3,4,1,9], 934291) 
 /// ```
 pub fn reduce(hash: &[u8], deriv: u32) -> Vec<u8> {
-    if deriv % 2 == 0 {
-        base64::encode(hash).as_bytes().iter()
-            .take(cmp::max(deriv % 30 + 1, 4) as usize)
-            .map(|i| (((*i as u32 + deriv) % (74)) + 48) as u8)
-            .collect::<Vec<u8>>()
-    } else {
-        hash.iter()
-            .take(cmp::max(deriv % 30 + 1, 4) as usize)
-            .map(|i| (((*i as u32 + deriv) % (74)) + 48) as u8)
-            .collect::<Vec<u8>>()
-    } 
+    let mut generator = ChaChaRng::seed_from_u64(deriv as u64);
+    (0..(generator.next_u32() % 30)).map(|i| {
+        let nth:usize = (i as usize) % hash.len();
+        ((hash[nth] as u32 + generator.next_u32())%96 + 30) as u8
+    }).collect()
 }
 
 /// Generate the hash chain of `n`-length from a `src` source string.
