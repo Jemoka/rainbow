@@ -1,7 +1,9 @@
 mod utils;
 mod table;
-use std::num::ParseIntError;
 
+pub use table::Rainbow;
+
+use std::num::ParseIntError;
 use std::fs;
 
 #[macro_use]
