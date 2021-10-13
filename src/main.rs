@@ -4,7 +4,6 @@ mod table;
 pub use table::Rainbow;
 
 use std::num::ParseIntError;
-// use md5;
 use std::fs;
 
 #[macro_use]
@@ -14,12 +13,9 @@ extern crate clap;
  * Hello, gentle Reader!
  * This file contains the driver code to the CLI of `rainbow`, and is
  * likely not helpful to the usage of this package as a library. Probing
- * `lib.rs` is likely more helpful to that end.
+ * `table.rs` is likely more helpful to that end.
  *
  */
-
-
-
 
 // Decode a hexdecimal string
 // https://stackoverflow.com/questions/52987181/how-can-i-convert-a-hex-string-to-a-u8-slice
@@ -81,5 +77,7 @@ fn main() {
             let table = table::Rainbow::create(samples, length, threads, None).unwrap();
             if let Ok(_) = table.write_json(output) {} else {};
         }
+    } else {
+        println!("USAGE:\n    rainbow [SUBCOMMAND]\n\nFor more information try --help");
     }
 }

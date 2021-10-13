@@ -15,7 +15,7 @@ use std::sync::mpsc::channel;
 
 use super::utils;
 
-/// Represents a Fully-Hashable Rainbow Table
+/// Struct Represents a Fully-Hashable Rainbow Table
 #[derive(Debug, Hash, Deserialize, Serialize)]
 pub struct Rainbow {
     number_samples: u32,
