@@ -27,7 +27,7 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 }
 
 fn main() {
-    let menu = clap_app!(rainbow =>
+    let menu = clap_app!(jrainbow =>
                          (version: "0.0.1")
                          (author: "Houjun Liu <houliu@nuevaschool.org>")
                          (about: "Badly implemented MD5 Rainbow table")

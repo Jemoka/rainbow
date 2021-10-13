@@ -1,7 +1,13 @@
 [package]
-name = "rainbow"
+name = "jrainbow"
 version = "0.1.0"
 edition = "2018"
+license = "MIT"
+description = "A badly implemented MD5 rainbow table"
+homepage = "https://github.com/Jemoka/rainbow/"
+repository = "https://github.com/Jemoka/rainbow/"
+keywords = ["cli", "rainbow", "cryptography"]
+categories = ["command-line-utilities"]
 
 [profile.release]
 debug = false

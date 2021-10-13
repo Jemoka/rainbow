@@ -1,0 +1,4 @@
+A bad multi-threaded MD5 rainbow table generator and consumer with support for source password lists and JSON storage. Written as a cryptography assignment submission to Nueva School class CS240.
+
+* Usage
+No binaries are shipped with this program as [[https://github.com/rust-lang/cargo/issues/8875][Rust still lacks the ability to compile universal binaries]] out of the box.
