@@ -78,6 +78,6 @@ fn main() {
             if let Ok(_) = table.write_json(output) {} else {};
         }
     } else {
-        println!("USAGE:\n    rainbow [SUBCOMMAND]\n\nFor more information try --help");
+        println!("USAGE:\n    jrainbow [SUBCOMMAND]\n\nFor more information try --help");
     }
 }
